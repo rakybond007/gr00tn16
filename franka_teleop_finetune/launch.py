@@ -1,6 +1,7 @@
 """gr00t/experiment/launch_finetune.py 를 그대로 실행하되, 필요하면 메모리 관련 설정만 덮어쓴다.
 
 환경 변수를 안 주면 launch_finetune.py 와 똑같이 동작한다 (실제 학습은 이대로 큰 서버에서 돌린다).
+이미지 전처리는 modality_config.py 가 임포트하는 n15_image_transforms.py 에서 바뀐다.
 
 launch_finetune.py 는 옵티마이저를 adamw_torch 로 고정하고, GPU 1장이면 deepspeed 를 쓰지 않아서
 학습 파라미터(DiT ≈1.1B + LLM 상위 4층, fp32)의 Adam 상태가 전부 GPU 에 올라간다 → RTX 5090(32GB)에서 OOM.

@@ -15,6 +15,7 @@ action_configs 는 일부러 비워 둔다. 비우면 전 키가 ABSOLUTE / NON_
 그대로 받는 속도 명령(cartesian_velocity)이라 이게 맞다. RELATIVE 로 두면 현재 상태 기준
 델타로 다시 계산하려 들어 이중 변환이 된다 (robocasa_finetune 과 같은 이유).
 """
+import n15_image_transforms  # noqa: F401  임포트하면 이미지 변환이 N1.5 방식으로 교체된다
 from gr00t.configs.data.embodiment_configs import register_modality_config
 from gr00t.data.embodiment_tags import EmbodimentTag
 from gr00t.data.types import ModalityConfig

@@ -158,11 +158,16 @@ NGPU=2 BS=64 MAXSTEPS=20000 SAVESTEPS=2000 DS=$DATA/<TASK_ID> OUT=$CKPT/<RUN> ba
 - 환경 변수를 안 주면 `launch.py` 는 `launch_finetune.py` 와 똑같이 동작한다.
 - RTX 5090(32GB) 1장은 배치 4 에서도 `adamw_torch` 로 첫 step 에 OOM 이 난다. 파이프라인만 확인하려면
   `pip install bitsandbytes` 후 `OPTIM=paged_adamw_8bit` 로 돌린다. 이 옵션은 스모크용이고 deepspeed 와 같이 쓰지 않는다.
-- 이미지는 데이터로더 워커가 샤드 단위로 전 프레임을 처리한다(디코딩 → 짧은 변 256 리사이즈 → 95% 크롭).
-  RAM 이 작은 머신에서는 `WORKERS` 를 줄인다.
+- 이미지 전처리는 GR00T-action-quantization(N1.5) 의 `droid_franka_eef_real` 과 맞췄다: 95% 크롭(학습 랜덤, 추론 중앙) →
+  224x224 리사이즈(비율 무시, 검은 여백 없음) → 색상 변형(학습만, 밝기 0.3·대비 0.4·채도 0.5·색조 0.08). 크롭과 색상 변형은 카메라 간에 같다.
+  `n15_image_transforms.py` 가 N1.6 변환 함수를 바꿔 끼우고, gr00t/ 코드는 그대로다.
+- **추론은 반드시 `python franka_teleop_finetune/serve.py <run_gr00t_server 인자>` 로 띄운다.** 변환은 체크포인트에 저장되지 않아서
+  `run_gr00t_server.py` 를 바로 쓰면 오류 없이 N1.6 기본 패딩이 들어간다. `processor_config.json` 의 256 은 실제 값이 아니다.
+- 데이터로더 워커가 샤드 단위로 전 프레임을 미리 처리한다. RAM 이 작은 머신에서는 `WORKERS` 를 줄인다.
 
 검증 범위: 1 에피소드(728 프레임) 데이터로 RTX 5090, 배치 4, `paged_adamw_8bit` 20 step 스모크가 끝까지 돌고 체크포인트가 저장됐다
-(GPU 메모리 최대 약 21GB). 기본값 `adamw_torch` 나 멀티 GPU/deepspeed 로는 이 데이터를 돌려 보지 않았고, 학습 성능도 확인하지 않았다.
+(GPU 메모리 최대 약 21GB, 이미지 전처리를 N1.5 방식으로 바꾸기 전). 바꾼 뒤에는 실제 프레임으로 변환 결과와 백본 forward 만 확인했다.
+state/action 정규화는 N1.5 와 다르다(N1.6 기본, 그리퍼 연속값). 기본값 `adamw_torch` 나 멀티 GPU/deepspeed 로는 이 데이터를 돌려 보지 않았고, 학습 성능도 확인하지 않았다.
 
 ## 원본 대비 바뀐 것
 
