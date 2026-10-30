@@ -2,7 +2,7 @@
 
 NVIDIA [Isaac-GR00T](https://github.com/NVIDIA/Isaac-GR00T) 의 `n1.6.1-release` (커밋 `5dc80c4`) 위에
 RoboCasa Kitchen 24 태스크(PandaOmron) 파인튜닝·평가 스크립트를 얹은 레포다.
-GR00T 코드(`gr00t/` 등)는 **한 줄도 바꾸지 않았고**, 추가한 것은 전부 `robocasa_finetune/` 안에 있다.
+GR00T 코드(`gr00t/` 등)는 **한 줄도 바꾸지 않았고**, 추가한 것은 전부 `robocasa_finetune/` 과 `franka_teleop_finetune/` 안에 있다.
 원래 README 는 [`README_ISAAC_GR00T.md`](README_ISAAC_GR00T.md) 에 그대로 두었다.
 
 결과 요약 (같은 데이터·설정, 각 1회 학습, 24 태스크 × 50 ep):
@@ -139,9 +139,34 @@ python robocasa_finetune/eval/summarize.py eval_out/n16_noisy
 - 서버는 기본으로 오프라인(`HF_HUB_OFFLINE=1`)이다. HF 캐시가 비어 있는 머신이면 `HF_HUB_OFFLINE=0` 으로 한 번 돌린다.
 - 실행 길이를 바꾸려면 `EXEC_H` (1~16).
 
+## Franka 텔레옵 데이터 파인튜닝
+
+[rlwrld-franka-teleop](https://github.com/rakybond007/rlwrld-franka-teleop) 으로 수집·변환한 LeRobot v2.1 데이터(`--action-type eef`)를 학습한다.
+환경은 위 `n16` 과 같다.
+
+```bash
+# 1. 데이터셋에 meta/modality.json 추가 (train.sh 가 없으면 자동으로 실행)
+python franka_teleop_finetune/prepare_dataset.py --dataset-path $DATA/<TASK_ID>
+
+# 2. 학습 (기본값은 GPU 1장, 배치 4, 20 step 스모크)
+NGPU=2 BS=64 MAXSTEPS=20000 SAVESTEPS=2000 DS=$DATA/<TASK_ID> OUT=$CKPT/<RUN> bash franka_teleop_finetune/train.sh
+```
+
+- state 7차원: EE 위치 3 · EE 회전(euler) 3 · 그리퍼 1. action 7차원: EE 속도 명령 6(−1~1) · 그리퍼 목표 위치 1.
+  액션은 `RobotEnv` 가 그대로 받는 값이라 `action_configs` 를 비워 변환 없이 쓴다. 16스텝 청크 = 10Hz 에서 1.6초.
+- 카메라: `wrist_view`(ZED-M 11845904 left), `exo_view`(ZED 2i 37149196 left). 다르면 `prepare_dataset.py --wrist-key/--exo-key`.
+- 환경 변수를 안 주면 `launch.py` 는 `launch_finetune.py` 와 똑같이 동작한다.
+- RTX 5090(32GB) 1장은 배치 4 에서도 `adamw_torch` 로 첫 step 에 OOM 이 난다. 파이프라인만 확인하려면
+  `pip install bitsandbytes` 후 `OPTIM=paged_adamw_8bit` 로 돌린다. 이 옵션은 스모크용이고 deepspeed 와 같이 쓰지 않는다.
+- 이미지는 데이터로더 워커가 샤드 단위로 전 프레임을 처리한다(디코딩 → 짧은 변 256 리사이즈 → 95% 크롭).
+  RAM 이 작은 머신에서는 `WORKERS` 를 줄인다.
+
+검증 범위: 1 에피소드(728 프레임) 데이터로 RTX 5090, 배치 4, `paged_adamw_8bit` 20 step 스모크가 끝까지 돌고 체크포인트가 저장됐다
+(GPU 메모리 최대 약 21GB). 기본값 `adamw_torch` 나 멀티 GPU/deepspeed 로는 이 데이터를 돌려 보지 않았고, 학습 성능도 확인하지 않았다.
+
 ## 원본 대비 바뀐 것
 
-- 추가: `robocasa_finetune/` 전체.
+- 추가: `robocasa_finetune/`, `franka_teleop_finetune/` 전체.
 - 삭제: git-lfs 로 관리되던 `media/*.gif` 등 그림과 `demo_data/` (이 레포에는 LFS 객체가 없어 포인터 파일만 남기 때문).
   원본 README 의 그림 일부가 안 보이는 이유다. 필요하면 원본 레포에서 받는다.
 - 이동: `README.md` → `README_ISAAC_GR00T.md`.
