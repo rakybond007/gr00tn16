@@ -146,7 +146,7 @@ python robocasa_finetune/eval/summarize.py eval_out/n16_noisy
   원본 README 의 그림 일부가 안 보이는 이유다. 필요하면 원본 레포에서 받는다.
 - 이동: `README.md` → `README_ISAAC_GR00T.md`.
 
-`git diff 5dc80c4 HEAD` 로 원본과의 차이를 볼 수 있다.
+첫 커밋(`1c0fcde`)이 원본 n1.6.1-release(5dc80c4)의 파일 그대로다. `git diff 1c0fcde HEAD` 로 원본과의 차이를 볼 수 있다.
 
 ## 검증 범위
 
