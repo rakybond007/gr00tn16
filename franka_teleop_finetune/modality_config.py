@@ -10,6 +10,9 @@
                  · 6:7 그리퍼 목표 위치
   video:         wrist_view (ZED-M 11845904 left) · exo_view (ZED 2i 37149196 left)
 
+eef_rotation 은 sin/cos 로 인코딩한다 (state 3 → 6차원). 그리퍼가 아래를 보면 roll 이 ±π 경계에
+걸려 한 스텝에 6.28 씩 튀기 때문이다. 나머지 state·action 은 N1.6 기본(min-max) 이다.
+
 action_configs 는 일부러 비워 둔다. 비우면 전 키가 ABSOLUTE / NON_EEF / DEFAULT 로
 채워지는데, 이는 액션 값을 변환 없이 그대로 쓴다는 뜻이다. 우리 액션은 RobotEnv 가
 그대로 받는 속도 명령(cartesian_velocity)이라 이게 맞다. RELATIVE 로 두면 현재 상태 기준
@@ -32,6 +35,7 @@ franka_teleop_config = {
             "eef_rotation",
             "gripper_position",
         ],
+        sin_cos_embedding_keys=["eef_rotation"],  # roll 이 ±π 경계를 넘나들어 min-max 를 쓰면 값이 튄다
     ),
     "action": ModalityConfig(
         delta_indices=list(range(16)),          # 청크 지평 16 (10Hz 수집 → 1.6초)
