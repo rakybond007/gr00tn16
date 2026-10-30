@@ -1,450 +1,160 @@
-<div align="center">
+# GR00T N1.6 — RoboCasa Kitchen 파인튜닝·평가
 
-  <img src="media/header_compress.png" width="800" alt="NVIDIA Isaac GR00T N1.6 Header">
+NVIDIA [Isaac-GR00T](https://github.com/NVIDIA/Isaac-GR00T) 의 `n1.6.1-release` (커밋 `5dc80c4`) 위에
+RoboCasa Kitchen 24 태스크(PandaOmron) 파인튜닝·평가 스크립트를 얹은 레포다.
+GR00T 코드(`gr00t/` 등)는 **한 줄도 바꾸지 않았고**, 추가한 것은 전부 `robocasa_finetune/` 안에 있다.
+원래 README 는 [`README_ISAAC_GR00T.md`](README_ISAAC_GR00T.md) 에 그대로 두었다.
 
-  <!-- --- -->
-  
-  <p style="font-size: 1.2em;">
-    <a href="https://developer.nvidia.com/isaac/gr00t"><strong>Website</strong></a> | 
-    <a href="https://huggingface.co/nvidia/GR00T-N1.6-3B"><strong>Model</strong></a> |
-    <a href="https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-GR00T-X-Embodiment-Sim"><strong>Dataset</strong></a> |
-    <a href="https://arxiv.org/abs/2503.14734"><strong>Paper</strong></a> |
-    <a href="https://research.nvidia.com/labs/gear/gr00t-n1_6/"><strong>Research Blog</strong></a>
-  </p>
-</div>
+결과 요약 (같은 데이터·설정, 각 1회 학습, 24 태스크 × 50 ep):
 
-## NVIDIA Isaac GR00T
+| 모델 | 성공률 |
+|---|---|
+| GR00T N1.5 | 70.3% |
+| **GR00T N1.6 (이 레포)** | **68.8%** |
+| GR00T N1.7 | 49.6% |
 
-<!-- <div align="center">
-<img src="media/H1-MultiView.gif" height="240" alt="YAM arms">
-<img src="media/H3-head-2x.gif" height="240" alt="AgiBot Genie-1">
-<img src="media/W4.gif" height="240" alt="Unitree G1">
-</div> -->
-<!-- <img src="media/banner.gif" height="240" alt="Unitree G1"> -->
-<table style="width:100%; table-layout:fixed;">
-  <tr>
-    <td style="width:33.33%; text-align:center;">
-      <img src="media/unitree_g1.gif" style="max-width:100%; height:auto;">
-    </td>
-    <td style="width:33.33%; text-align:center;">
-      <img src="media/agibot_g1.gif" style="max-width:100%; height:auto;">
-    </td>
-    <td style="width:33.33%; text-align:center;">
-      <img src="media/yam.gif" style="max-width:100%; height:auto;">
-    </td>
-  </tr>
-</table>
+태스크별 결과와 실행 길이 비교는 [`robocasa_finetune/results/n16_rc_mg_noisy.md`](robocasa_finetune/results/n16_rc_mg_noisy.md).
 
-> We just released GR00T N1.6, an updated version of GR00T N1 with improved performance and new features. Check out the [release blog post](https://research.nvidia.com/labs/gear/gr00t-n1_6/) for more details.
+## 구성
 
-> To use the older version, N1.5, please checkout the [n1.5-release](https://github.com/NVIDIA/Isaac-GR00T/tree/n1.5-release) branch.
-
-NVIDIA Isaac GR00T N1.6 is an open vision-language-action (VLA) model for generalized humanoid robot skills. This cross-embodiment model takes multimodal input, including language and images, to perform manipulation tasks in diverse environments.
-
-GR00T N1.6 is trained on a diverse mixture of robot data including bimanual, semi-humanoid and an expansive humanoid dataset. It is adaptable through post-training for specific embodiments, tasks and environments.
-
-The neural network architecture of GR00T N1.6 is a combination of vision-language foundation model and diffusion transformer head that denoises continuous actions. Here is a schematic diagram of the architecture:
-
-<div align="center">
-<img src="media/model-architecture.png" width="800" alt="model-architecture">
-</div>
-
-Here is the general procedure to use GR00T N1.6:
-
-1. We assume the user has already collected a dataset of robot demonstrations in the form of (video, state, action) triplets for a specific task. 
-2. The user will first convert the demonstration data into the LeRobot compatible data schema (more info in [`getting_started/data_preparation.md`](getting_started/data_preparation.md)), which is compatible with the upstream [Huggingface LeRobot Dataset V2](https://github.com/huggingface/lerobot).
-3. Our repo provides convenient scripts to validate zero-shot performance of the pretrained model (see [Policy API Guide](getting_started/policy.md) and [RoboCasa Zero-Shot](examples/robocasa-gr1-tabletop-tasks/README.md)).
-4. Our repo provides examples of different configurations for training with different robot embodiments (see [`examples/`](examples/) and [Fine-tuning Guide](getting_started/finetune_new_embodiment.md)).
-5. Our repo provides convenient scripts for finetuning the pre-trained GR00T N1.6 model on user's data, and running inference, see [`examples`](examples).
-6. Our repo provides convenient scripts to run academic simulation benchmarks with finetuned checkpoints (see [LIBERO](examples/LIBERO/README.md), [SimplerEnv](examples/SimplerEnv/README.md), [RoboCasa](examples/robocasa/README.md)).
-7. The user will need to connect the `Gr00tPolicy` to the robot controller to execute actions on their target hardware.
-
-## What's New in GR00T N1.6
-
-GR00T N1.6 represents a significant upgrade over GR00T N1.5, with improvements in both model architecture and data leading to better performance in many aspects.
-
-### Model and Data Improvements
-
-Architectural changes:
-- Base VLM: We use an internal NVIDIA Cosmos-Reason-2B VLM variant. The VLM supports flexible resolution and can encode images in their native aspect ratio without padding. The VLM is trained both general vision-language tasks and embodied reasoning tasks like next action prediction.
-- Uses 2x larger DiT (32 layers vs 16 layers in N1.5).
-- Removes N1.5's post-VLM 4-layer transformer adapter. Instead, unfreezes top 4 layers of the VLM during pretraining.
-- Predicts state-relative action chunks for most embodiments, rather than absolute joint angles or EEF positions.
-
-Beyond the N1.5 data mixture, the N1.6 pretraining data additionally includes several thousand hours of teleoperated data from:
-- Bimanual YAM arms
-- AGIBot Genie1
-- Simulated Galaxea R1 Pro on the BEHAVIOR suite
-- Whole-Body Locomanipulation with Unitree G1
-
-Other code-level improvements:
-- Faster dataloader with sharded dataloader support.
-- RTC and Async Policy Wrapper for inference (soon to release)
-- Simplified data processing pipeline with `processing_gr00t_n1d6.py`
-- Flexible Training configuration
-
-## Target Audience
-
-GR00T N1.6 is intended for researchers and professionals in robotics. This repository provides tools to:
-
-- Leverage a pre-trained foundation model for robot control
-- Fine-tune on small, custom datasets
-- Adapt the model to specific robotics tasks with minimal data
-- Deploy the model for inference
-
-The focus is on enabling customization of robot behaviors through finetuning.
-
-## Installation Guide
-
-### Clone the Repository
-
-GR00T relies on submodules for certain dependencies. Include them when cloning:
-
-```sh
-git clone --recurse-submodules https://github.com/NVIDIA/Isaac-GR00T
-cd Isaac-GR00T
+```
+robocasa_finetune/
+  modality_config.py          RoboCasa 모달리티 설정 (NEW_EMBODIMENT 로 자기 등록)
+  train.sh / train.sbatch     파인튜닝 (gr00t/experiment/launch_finetune.py 호출)
+  eval/
+    run_eval.sh / eval.sbatch 정책 서버 1개 + 태스크별 클라이언트, 24 태스크 평가
+    robocasa_client.py        폐루프 평가 클라이언트 (torch 불필요)
+    wrappers/                 GR00T N1.5 의 RoboCasa gym 래퍼 (N1.5 와 같은 평가 프로토콜용, Apache-2.0)
+    summarize.py              prediction.txt → 태스크별·전체 성공률
+  env/
+    requirements_n16_freeze.txt     학습·정책 서버 env 전체 버전 (결과를 낸 env 의 pip freeze)
+    requirements_robocasa_eval.txt  평가 클라이언트 env
+  results/n16_rc_mg_noisy.md
 ```
 
-If you've already cloned without submodules, initialize them separately:
+환경은 두 개다. 정책(학습·서버)은 torch 2.7 env, RoboCasa 시뮬레이션(클라이언트)은 robosuite/robocasa env 에서 돌고,
+둘은 localhost ZMQ 로 통신한다. 버전 충돌 없이 N1.5 와 같은 시뮬레이터 버전을 쓰기 위해서다.
 
-```sh
-git submodule update --init --recursive
-```
+## 1. 환경 셋업
 
-### Set Up the Environment
+Linux x86_64, CUDA 12.8 을 돌릴 수 있는 NVIDIA 드라이버, python 3.10 기준.
 
-GR00T uses [uv](https://github.com/astral-sh/uv) for fast, reproducible dependency management. Each supported platform has its own dependency configuration under `scripts/deployment/`.
+### 1-1. 정책 env (`n16`): 학습·정책 서버
 
-#### dGPU (Non-Jetson) — Default
+결과를 낸 env 를 그대로 재현하는 방법 (conda + pip):
 
 ```bash
-bash scripts/deployment/dgpu/install_deps.sh
-source .venv/bin/activate
+git clone https://github.com/rakybond007/gr00tn16.git && cd gr00tn16
+conda create -n n16 python=3.10 -y && conda activate n16
+pip install -r robocasa_finetune/env/requirements_n16_freeze.txt \
+    --extra-index-url https://download.pytorch.org/whl/cu128
+pip install -e . --no-deps
 ```
 
-Or manually:
-```bash
-uv sync
-uv pip install -e .
-```
+`requirements_n16_freeze.txt` 의 주요 버전: torch 2.7.1+cu128, torchvision 0.22.1, torchcodec 0.4.0, transformers 4.51.3,
+flash-attn 2.7.4.post1 (공식 wheel URL), deepspeed 0.17.6, diffusers 0.35.1, peft 0.17.1, numpy 1.26.4.
+`pyproject.toml` 의 핀과 같다(차이는 dm-tree 0.1.10 과, 쓰지 않는 tensorrt 미설치뿐).
 
-#### Jetson AGX Thor
-
-Tested with JetPack 7.1.
-
-```bash
-bash scripts/deployment/thor/install_deps.sh
-source .venv/bin/activate
-source scripts/activate_thor.sh
-```
-
-See the [Thor setup guide](scripts/deployment/README.md#jetson-thor-setup) for Docker and bare metal details.
-
-#### Jetson Orin
-
-Tested with JetPack 6.2.
+공식 방법(uv)으로 깔아도 같은 버전이 된다:
 
 ```bash
-bash scripts/deployment/orin/install_deps.sh
-source .venv/bin/activate
-source scripts/activate_orin.sh
+uv sync && uv pip install -e .     # 또는 bash scripts/deployment/dgpu/install_deps.sh
 ```
 
-See the [Orin setup guide](scripts/deployment/README.md#jetson-orin-setup) for Docker and bare metal details.
-
-For a containerized setup on any platform, see the [Docker Setup Guide](docker/README.md).
-Use the Docker guide to build the image and open a container, and the [Deployment & Inference Guide](scripts/deployment/README.md) for copy-paste inference and benchmark commands.
-
-For training and inference hardware recommendations, see the [Hardware Recommendation Guide](getting_started/hardware_recommendation.md).
-
-## Model Checkpoints
-
-### Base Models
-We provide pre-trained base VLA model checkpoints. These checkpoints have been pre-trained on 10k+ hours of robot data and can be used for finetuning on downstream tasks.
-
-| Model | Use Case | Description | Checkpoint Path | Branch |
-| ----- | -------- | ----------- | --------------- | ------ |
-| GR00T N1.5 | Finetuning | Base [GR00T N1.5 model](https://research.nvidia.com/labs/gear/gr00t-n1_5/) (3B parameters) | [nvidia/GR00T-N1.5-3B](https://huggingface.co/nvidia/GR00T-N1.5-3B) | [n1.5-release](https://github.com/NVIDIA/Isaac-GR00T/tree/n1.5-release) |
-| GR00T N1.6 | Finetuning | Base [GR00T N1.6 model](https://research.nvidia.com/labs/gear/gr00t-n1_6/) (3B parameters) | [nvidia/GR00T-N1.6-3B](https://huggingface.co/nvidia/GR00T-N1.6-3B) | [main](https://github.com/NVIDIA/Isaac-GR00T) |
-
-### Finetuned Models
-We also provide finetuned checkpoints for various robot platforms and benchmarks. These models are finetuned from the base models above and can be used directly for evaluation or as starting points for further finetuning.
-
-| Model | Base Model | Description | Checkpoint Path | Example |
-| ----- | ---------- | ----------- | --------------- | ------- |
-| GR00T-N1.6-bridge | [nvidia/GR00T-N1.6-3B](https://huggingface.co/nvidia/GR00T-N1.6-3B) | Fine-tuned on [Bridge dataset](https://rail-berkeley.github.io/bridgedata/) for WidowX robot on manipulation tasks | [nvidia/GR00T-N1.6-bridge](https://huggingface.co/nvidia/GR00T-N1.6-bridge) | [SimplerEnv](examples/SimplerEnv/README.md) |
-| GR00T-N1.6-fractal | [nvidia/GR00T-N1.6-3B](https://huggingface.co/nvidia/GR00T-N1.6-3B) | Fine-tuned on [Fractal dataset](https://www.tensorflow.org/datasets/catalog/fractal20220817_data) for Google robot on manipulation tasks | [nvidia/GR00T-N1.6-fractal](https://huggingface.co/nvidia/GR00T-N1.6-fractal) | [SimplerEnv](examples/SimplerEnv/README.md) |
-| GR00T-N1.6-BEHAVIOR1k | [nvidia/GR00T-N1.6-3B](https://huggingface.co/nvidia/GR00T-N1.6-3B) | Fine-tuned on [BEHAVIOR-1K](https://behavior.stanford.edu/) for Galaxea R1 Pro robot on loco-manipulation tasks | [nvidia/GR00T-N1.6-BEHAVIOR1k](https://huggingface.co/nvidia/GR00T-N1.6-BEHAVIOR1k) | [BEHAVIOR](examples/BEHAVIOR/README.md) |
-| GR00T-N1.6-G1-PnPAppleToPlate | [nvidia/GR00T-N1.6-3B](https://huggingface.co/nvidia/GR00T-N1.6-3B) | Fine-tuned for Unitree G1 loco-manipulation pick-and-place tasks | [nvidia/GR00T-N1.6-G1-PnPAppleToPlate](https://huggingface.co/nvidia/GR00T-N1.6-G1-PnPAppleToPlate) | [G1 LocoManipulation](examples/GR00T-WholeBodyControl/README.md) |
-| GR00T-N1.6-DROID | [nvidia/GR00T-N1.6-DROID](https://huggingface.co/nvidia/GR00T-N1.6-DROID) | Fine-tuned for DROID robot on manipulation tasks | [nvidia/GR00T-N1.6-DROID](https://huggingface.co/nvidia/GR00T-N1.6-DROID) | [DROID](examples/DROID/README.md) |
-
-
-
-## Quick Start
-
-We can quickly start by downloading a pre-trained checkpoint and starting the policy server for any pretrained embodiement, e.g. GR1 embodiment.
-```bash
-# On GPU server: Start the policy server
-uv run python gr00t/eval/run_gr00t_server.py --embodiment-tag GR1 --model-path nvidia/GR00T-N1.6-3B
-```
-
-Then, refer to the [robocasa-gr1-tabletop-tasks](examples/robocasa-gr1-tabletop-tasks/README.md) for more details on how to rollout the policy with `GR1` embodiment.
-
-## Getting started with this repo
-
-We provide accessible Jupyter notebooks and detailed documentation in the [`./getting_started`](getting_started) folder.
-
-## 1. Data Preparation
-
-Please refer to the [data preparation guide](getting_started/data_preparation.md) for more details.
-
-## 2. Inference
-
-After data is prepared, the GR00T model can be used to generate output actions with the below simple inference script:
+확인:
 
 ```bash
-uv run python scripts/deployment/standalone_inference_script.py \
-  --model-path nvidia/GR00T-N1.6-3B \
-  --dataset-path demo_data/gr1.PickNPlace \
-  --embodiment-tag GR1 \
-  --traj-ids 0 1 2 \
-  --inference-mode pytorch \
-  --action-horizon 8
+python -c "import torch, flash_attn, gr00t; print(torch.__version__, torch.cuda.is_available())"
 ```
 
-GR00T-N1.6-3B inference timing (4 denoising steps, single view):
-
-| Device | Mode | Data Processing | Backbone | Action Head | E2E | Frequency |
-|--------|------|-----------------|----------|-------------|-----|-----------|
-| RTX 5090 | torch.compile | 2 ms | 18 ms | 16 ms | 37 ms | 27.3 Hz |
-| H100 | torch.compile | 4 ms | 23 ms | 11 ms | 38 ms | 26.3 Hz |
-| RTX 4090 | torch.compile | 2 ms | 25 ms | 17 ms | 44 ms | 22.8 Hz |
-| Thor | torch.compile | 5 ms | 39 ms | 61 ms | 105 ms | 9.5 Hz |
-
-For more details, please check our full [inference guide](scripts/deployment/README.md) for more details including faster inference with `TensorRT`
-
-## 3. Finetuning
-
-### Fine-tune on Pre-registered Post-train Embodiment Tags
-
-GR00T provides several pre-registered embodiment tags with ready-to-use configurations:
-
-- `LIBERO_PANDA`
-- `OXE_GOOGLE`
-- `OXE_WIDOWX`
-- `UNITREE_G1`
-- `BEHAVIOR_R1_PRO`
-
-**Example:** To finetune Libero-Spatial on GR00T N1.6, follow the instructions in the [Libero finetuning guide](examples/LIBERO/README.md#finetune-libero-spatial-dataset). We also provide simulation environment setup for evaluation linked with post-train checkpoints and benchmark numbers.
-
-### Fine-tune on Custom Embodiments ("NEW_EMBODIMENT")
-
-To finetune GR00T on your own robot data and configuration, follow the detailed tutorial available at [`getting_started/finetune_new_embodiment.md`](getting_started/finetune_new_embodiment.md).
-
-#### Prerequisites
-
-Ensure your input data follows the **GR00T-flavored LeRobot v2 format**, and specify your modality configuration at `modality_config_path`.
-
-#### Run Fine-tuning Script
-```bash
-# Set number of GPUs
-export NUM_GPUS=1
-
-CUDA_VISIBLE_DEVICES=0 uv run python \
-    gr00t/experiment/launch_finetune.py \
-    --base-model-path nvidia/GR00T-N1.6-3B \
-    --dataset-path <DATASET_PATH> \
-    --embodiment-tag NEW_EMBODIMENT \
-    --modality-config-path <MODALITY_CONFIG_PATH> \
-    --num-gpus $NUM_GPUS \
-    --output-dir <OUTPUT_PATH> \
-    --save-total-limit 5 \
-    --save-steps 2000 \
-    --max-steps 2000 \
-    --use-wandb \
-    --global-batch-size 32 \
-    --color-jitter-params brightness 0.3 contrast 0.4 saturation 0.5 hue 0.08 \
-    --dataloader-num-workers 4
-```
-
-> For more extensive finetuning configuration, use `gr00t/experiment/launch_train.py` instead to launch the training process.
-
-### Recommended Fine-tuning Configuration
-
-For optimal results, maximize your batch size based on available hardware and train for a few thousand steps.
-
-#### Hardware Performance Considerations
-
-**Fine-tuning Performance**
-- We recommend using 1 H100 node or L40 node for optimal finetuning performance
-- Other hardware configurations (e.g., A6000) will also work but may require longer training time
-- Optimal batch size depends on your hardware and which model components are being tuned
-
-#### Training Variance
-
-Users may observe some variance in post-training results across runs, even when using the same configuration, seed, and dropout settings. In our experiments, we have observed performance differences as large as 5-6% between runs. This variance may be attributed to non-deterministic operations in image augmentations or other stochastic components. When comparing results to reported benchmarks, please keep this inherent variance in mind.
-
-## 4. Evaluation
-
-We recommend a two-stage evaluation approach: open-loop evaluation followed by simulation evaluation to comprehensively assess model quality.
-
-### 4.1 Open-Loop Evaluation
-
-Open-loop evaluation provides an offline assessment by comparing the model's predicted actions against ground truth data from your dataset.
-
-#### Running the Evaluation
-
-Execute the evaluation script with your newly trained model:
-```bash
-uv run python gr00t/eval/open_loop_eval.py \
-    --dataset-path <DATASET_PATH> \
-    --embodiment-tag NEW_EMBODIMENT \
-    --model-path <CHECKPOINT_PATH> \
-    --traj-ids 0 \
-    --action-horizon 16  # ensure this is within the delta_indices of action's modality config.
-```
-
-#### Interpreting Results
-
-The evaluation generates a visualization saved at `/tmp/open_loop_eval/traj_{traj_id}.jpeg`, which includes:
-- Ground truth actions vs. predicted actions
-- Unnormalized mean squared error (MSE) metrics
-
-These plots provide a quick indicator of the policy's accuracy on the training dataset distribution.
-
-### 4.2 Closed-Loop Evaluation
-
-After validating performance through open-loop evaluation, test your model in closed-loop environments.
-
-#### Understanding the Policy API
-
-After training your model, you'll use the `Gr00tPolicy` class to load and run inference. The policy expects observations in a specific format (nested dictionaries with video, state, and language modalities) and returns actions ready for execution.
-
-**Quick Start with Server-Client Architecture:**
+### 1-2. 평가 env (`robocasa_eval`): RoboCasa 시뮬레이션 클라이언트
 
 ```bash
-# On GPU server: Start the policy server
-uv run python gr00t/eval/run_gr00t_server.py \
-    --embodiment-tag NEW_EMBODIMENT \
-    --model-path <CHECKPOINT_PATH> \
-    --device cuda:0 \
-    --host 0.0.0.0 \
-    --port 5555
+conda create -n robocasa_eval python=3.10 -y && conda activate robocasa_eval
+pip install -r robocasa_finetune/env/requirements_robocasa_eval.txt
+
+git clone https://github.com/ARISE-Initiative/robosuite.git
+(cd robosuite && git checkout e94119512f737635111ae651768c17ad1be72859 && pip install -e .)   # 1.5.2
+
+git clone https://github.com/robocasa/robocasa.git
+(cd robocasa && git checkout 756598a5be52e052339bb2d957426e39015c2afb && pip install -e . \
+  && python robocasa/scripts/download_kitchen_assets.py \
+  && python robocasa/scripts/setup_macros.py)                                                   # 0.2.0, 에셋 수 GB
 ```
 
-```python
-from gr00t.policy.server_client import PolicyClient
-
-policy = PolicyClient(host="localhost", port=5555) # Connect to the policy server
-env = YourEnvironment() # Create an environment
-obs, info = env.reset() # Reset the environment
-if not policy.ping(): # Verify connection
-    raise RuntimeError("Cannot connect to policy server!")
-action, info = policy.get_action(obs) # Run inference
-obs, reward, done, truncated, info = env.step(action) # Execute the action
-```
-
-**Debugging with ReplayPolicy:**
-
-When developing a new environment integration or debugging your inference loop, you can use `ReplayPolicy` to replay recorded actions from an existing dataset. This helps verify that your environment setup, observation formatting, and action execution work correctly—without needing a trained model.
+렌더링은 EGL(`MUJOCO_GL=egl`)이라 GPU 노드에서 돌린다. 확인:
 
 ```bash
-# Start server with ReplayPolicy (replays actions from dataset)
-uv run python gr00t/eval/run_gr00t_server.py \
-    --dataset-path <DATASET_PATH> \
-    --embodiment-tag NEW_EMBODIMENT \
-    --execution-horizon 8  # should match the executed action horizon in the environment
+MUJOCO_GL=egl python -c "import robosuite, robocasa; print(robosuite.__version__)"
 ```
 
-The server will replay actions from the first episode of the dataset. Use `policy.reset(options={"episode_index": N})` on the client to switch to a different episode.
+## 2. 데이터
 
-**For detailed documentation on:**
-- How to adapt the policy to your own environment
-- Server-client architecture for remote inference
-- Observation and action formats
-- Querying modality configurations
-- Batched inference
-- Troubleshooting common errors
+LeRobot 형식 RoboCasa Kitchen 데이터 (24 태스크, PandaOmron, 3 카메라 left/right/wrist):
 
-See the complete [Policy API Guide](getting_started/policy.md).
-
-#### Evaluation Examples
-
-We support evaluation on available public benchmarks and our internal benchmarks. Our evaluation framework uses a server-client architecture that communicates via RESTful API. Both the policy server and simulation environment client use the same IP (usually localhost) and port to run simulation evaluation.
-
-For the policy server, we reuse the project root's uv environment (same as finetuning) to run `run_gr00t_server`. For simulation environment clients, we provide individual setup scripts to configure uv environments, as they typically conflict with each other when using a single shared environment.
-
-You can use [the verification script](scripts/eval/check_sim_eval_ready.py) to verify that all dependencies and environments for simulation evaluation are properly configured.
-
-Please refer to each benchmark link below for more details.
-
-#### Adding a New Sim Benchmark
-
-Each sim benchmark registers its environments under a gym env_name with the format `{prefix}/{task_name}` (e.g., `libero_sim/LIVING_ROOM_SCENE2_put_soup_in_basket`). The evaluation framework uses the prefix to look up the corresponding `EmbodimentTag` via a mapping in [`gr00t/eval/sim/env_utils.py`](gr00t/eval/sim/env_utils.py).
-
-> **Important:** The env_name prefix and the `EmbodimentTag` value are often different. For example, `libero_sim` maps to `EmbodimentTag.LIBERO_PANDA` (`"libero_panda"`). Do not assume they match.
-
-To add a new benchmark:
-
-1. Add an entry to `ENV_PREFIX_TO_EMBODIMENT_TAG` in `gr00t/eval/sim/env_utils.py`:
-   ```python
-   ENV_PREFIX_TO_EMBODIMENT_TAG = {
-       ...
-       "my_new_benchmark": EmbodimentTag.MY_ROBOT,
-   }
-   ```
-2. If the benchmark has multiple env_name prefixes (e.g., `my_benchmark_v1`, `my_benchmark_v2`), all related prefixes **must** map to the same `EmbodimentTag`.
-3. Add corresponding test cases in `tests/gr00t/eval/sim/test_env_utils.py` and update the `test_all_known_prefixes_present` test.
-
-**Zero-shot Evaluation** (evaluate without finetuning):
-- **RoboCasa**: [Instructions](examples/robocasa/README.md)
-- **RoboCasa GR1 Tabletop Tasks**: [Instructions](examples/robocasa-gr1-tabletop-tasks/README.md)
-
-**Finetuned Evaluation** (test after task-specific finetuning):
-- **G1 LocoManipulation**: [Instructions](examples/GR00T-WholeBodyControl/README.md)
-- **LIBERO**: [Instructions](examples/LIBERO/README.md)
-- **SimplerEnv**: [Instructions](examples/SimplerEnv/README.md)
-- **BEHAVIOR**: [Instructions](examples/BEHAVIOR/README.md)
-- **PointNav**: [Instructions](examples/PointNav/README.md)
-- **SO-100**: [Instructions](examples/SO100/README.md)
-
-
-# Contributing
-
-For more details, see [CONTRIBUTING.md](CONTRIBUTING.md)
-
-
-## License 
-
-```
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+```bash
+huggingface-cli download prehj/rc_mg_noisy --repo-type dataset --local-dir $DATA/rc_mg_noisy
 ```
 
+액션 12차원 = `0:4 base_motion · 4 control_mode · 5:8 EE 위치 델타 · 8:11 EE 회전 델타 · 11 그리퍼`.
+모달리티 키는 데이터셋 `meta/modality.json` 을 그대로 따른다. 액션은 robosuite 컨트롤러가 바로 쓰는 델타 명령이라
+`action_configs` 를 비워(변환 없이 그대로) 쓴다. 자세한 이유는 `modality_config.py` 주석 참고.
 
-## Citation
-<!-- TODO: Update -->
-[Paper Site](https://research.nvidia.com/labs/lpr/publication/gr00tn1_2025/)
-```bibtex
-@inproceedings{gr00tn1_2025,
-  archivePrefix = {arxiv},
-  eprint     = {2503.14734},
-  title      = {{GR00T} {N1}: An Open Foundation Model for Generalist Humanoid Robots},
-  author     = {NVIDIA and Johan Bjorck and Fernando Castañeda, Nikita Cherniadev and Xingye Da and Runyu Ding and Linxi "Jim" Fan and Yu Fang and Dieter Fox and Fengyuan Hu and Spencer Huang and Joel Jang and Zhenyu Jiang and Jan Kautz and Kaushil Kundalia and Lawrence Lao and Zhiqi Li and Zongyu Lin and Kevin Lin and Guilin Liu and Edith Llontop and Loic Magne and Ajay Mandlekar and Avnish Narayan and Soroush Nasiriany and Scott Reed and You Liang Tan and Guanzhi Wang and Zu Wang and Jing Wang and Qi Wang and Jiannan Xiang and Yuqi Xie and Yinzhen Xu and Zhenjia Xu and Seonghyeon Ye and Zhiding Yu and Ao Zhang and Hao Zhang and Yizhou Zhao and Ruijie Zheng and Yuke Zhu},
-  month      = {March},
-  year       = {2025},
-  booktitle  = {ArXiv Preprint},
-}
+## 3. 학습
+
+```bash
+conda activate n16
+DS=$DATA/rc_mg_noisy OUT=$CKPT/n16_rc_mg_noisy bash robocasa_finetune/train.sh
+# slurm:  DS=... OUT=... sbatch robocasa_finetune/train.sbatch     (CONDA_ENV 기본 n16)
 ```
+
+기본값: 베이스 `nvidia/GR00T-N1.6-3B`, `NEW_EMBODIMENT`, GPU 2장 × 배치 32 = 64, 60k step, 5k 마다 저장(최근 3개 보관),
+나머지(lr 1e-4, tune_visual/tune_llm=False 등)는 `launch_finetune.py` 기본값. `NGPU BS MAXSTEPS SAVESTEPS` 로 바꿀 수 있다.
+첫 실행 때 베이스 모델을 HF 에서 받는다.
+
+주의: `checkpoint-*/global_step*` 의 deepspeed 옵티마이저 상태가 커서, 5 step 스모크에서도 출력 폴더가 31 GB 였다.
+평가에는 옵티마이저 상태가 필요 없다. 학습이 끝나면 `SAVESTEPS` 와 상관없이 마지막 체크포인트가 저장된다.
+
+## 4. 평가
+
+정책 서버(`n16` env)와 클라이언트(`robocasa_eval` env)를 한 GPU 에서 같이 띄운다. `CKPT` 는 `config.json` 이 든
+`checkpoint-XXXX` 폴더여야 한다(processor 설정이 그 안에 있다).
+
+```bash
+CKPT=$CKPT/n16_rc_mg_noisy/checkpoint-60000 RUN=n16_noisy \
+POLICY_PY=$(conda run -n n16 which python) EVAL_PY=$(conda run -n robocasa_eval which python) \
+TASKS="CloseDrawer" N_EP=2 NO_VIDEO=1 bash robocasa_finetune/eval/run_eval.sh     # 스모크
+
+# 전체 24 태스크를 8 샤드로 (slurm 배열)
+CKPT=... RUN=n16_noisy POLICY_PY=... EVAL_PY=... SHARDS="0 1 2 3 4 5 6 7" \
+  sbatch --array=0-7 robocasa_finetune/eval/eval.sbatch
+
+python robocasa_finetune/eval/summarize.py eval_out/n16_noisy
+```
+
+- 프로토콜(N1.5 와 동일): seed 42, generative textures "100p", obj_instance_split A, styles [0..8, 11], 태스크당 50 ep,
+  16스텝 청크를 전부 실행(`EXEC_H=16`). 최대 스텝은 env horizon.
+- 결과는 `eval_out/<RUN>/<task>/prediction.txt` 에 `episode i is_success: [True] action_steps: N` 한 줄씩 쌓인다.
+  다시 돌리면 끝난 에피소드는 건너뛴다(장면 순서는 유지).
+- 서버는 기본으로 오프라인(`HF_HUB_OFFLINE=1`)이다. HF 캐시가 비어 있는 머신이면 `HF_HUB_OFFLINE=0` 으로 한 번 돌린다.
+- 실행 길이를 바꾸려면 `EXEC_H` (1~16).
+
+## 원본 대비 바뀐 것
+
+- 추가: `robocasa_finetune/` 전체.
+- 삭제: git-lfs 로 관리되던 `media/*.gif` 등 그림과 `demo_data/` (이 레포에는 LFS 객체가 없어 포인터 파일만 남기 때문).
+  원본 README 의 그림 일부가 안 보이는 이유다. 필요하면 원본 레포에서 받는다.
+- 이동: `README.md` → `README_ISAAC_GR00T.md`.
+
+`git diff 5dc80c4 HEAD` 로 원본과의 차이를 볼 수 있다.
+
+## 검증 범위
+
+- 학습·평가 스크립트는 위 결과(68.8%)를 낸 스크립트에서 서버 고유 경로만 걷어 낸 것이다. 이 레포 그대로
+  기존 env 에서 스모크를 돌려 확인했다: 학습 5 step(GPU 1장, 배치 4) 정상 종료, 평가 CloseDrawer 1 ep 성공.
+- `requirements_*.txt` 는 결과를 낸 env 에서 뽑은 버전이다. 새 머신에서 처음부터 env 를 만들어 끝까지 돌리는 것은
+  아직 확인하지 않았다.
+
+## 라이선스
+
+GR00T 코드와 `robocasa_finetune/eval/wrappers/` 는 NVIDIA 의 Apache-2.0 ([LICENSE](LICENSE)).
