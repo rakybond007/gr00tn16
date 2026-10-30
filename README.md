@@ -167,7 +167,32 @@ NGPU=2 BS=64 MAXSTEPS=20000 SAVESTEPS=2000 DS=$DATA/<TASK_ID> OUT=$CKPT/<RUN> ba
 
 검증 범위: 1 에피소드(728 프레임) 데이터로 RTX 5090, 배치 4, `paged_adamw_8bit` 20 step 스모크가 끝까지 돌고 체크포인트가 저장됐다
 (GPU 메모리 최대 약 21GB, 이미지 전처리를 N1.5 방식으로 바꾸기 전). 바꾼 뒤에는 실제 프레임으로 변환 결과와 백본 forward 만 확인했다.
-state/action 정규화는 N1.5 와 다르다(N1.6 기본, 그리퍼 연속값). 기본값 `adamw_torch` 나 멀티 GPU/deepspeed 로는 이 데이터를 돌려 보지 않았고, 학습 성능도 확인하지 않았다.
+기본값 `adamw_torch` 나 멀티 GPU/deepspeed 로는 이 데이터를 돌려 보지 않았고, 학습 성능도 확인하지 않았다.
+
+### 유의사항
+
+이미지:
+
+- 학습과 추론의 전처리는 `n15_image_transforms.py` 임포트로 맞춘다. 추론을 `run_gr00t_server.py` 로 바로 띄우면 **에러 없이** 패딩이 들어가 학습과 어긋난다.
+- 크기를 바꾸려면 `N15_IMAGE_SIZE` 를 고친다. `shortest_image_edge` 설정은 `from_pretrained` 가 무시한다. 값은 28 의 배수여야 그대로 들어간다.
+- N1.6 기본 입력은 252x252 이고 224 는 N1.5 에 맞춘 값이다. 프레임당 토큰 수가 196 → 162 로 줄고, 베이스 모델이 학습한 크기와 다르다.
+- 데이터의 영상은 720p 다. 추론 입력도 16:9 원본 비율로 보낸다. N1.5 추론은 192x320 을 보냈고, 그 학습 데이터의 원본 해상도는 확인하지 못했다.
+- 축소는 `INTER_AREA` 다. N1.5 의 bilinear+antialias 와 평균 오차 0.69/255 (실제 프레임 1장, 추론 변환 기준).
+
+state/action 은 N1.5 와 맞추지 않았고 N1.6 기본 처리를 쓴다:
+
+| 항목 | N1.5 실로봇 (`droid_franka_eef_real`) | N1.5 RoboCasa (`single_panda_gripper`) | N1.6 RoboCasa (`robocasa_finetune`) | N1.6 Franka (이 폴더) |
+|---|---|---|---|---|
+| 상태 회전 | `rotation_6d` | `rotation_6d` | 원본 값, min-max | 원본 euler, min-max |
+| 액션 위치·회전 | 정규화 없음 | min-max | min-max | min-max |
+| 액션 그리퍼 | `binary` | `binary` | min-max | min-max, 연속값 |
+
+- **상태 회전 (미해결):** 그리퍼가 아래를 볼 때 roll 이 ±π 경계에 걸린다. 1 에피소드 데이터에서 roll 이 −3.141~3.141 범위이고 한 스텝에 6.28 씩 튄다. 실제로는 거의 안 움직였는데 상태 값은 양 끝을 오가는 것이다.
+  N1.5 는 `rotation_6d` 라 이 문제가 없다. N1.6 은 `ModalityConfig(sin_cos_embedding_keys=["eef_rotation"])` 로 sin/cos 인코딩을 쓸 수 있고(`apply_sincos_state_encoding` 은 베이스 설정에서 켜져 있음), 아직 적용하지 않았다. 본 학습 전에 정해야 한다.
+- 액션 위치·회전: min-max 는 데이터셋의 최소·최대 범위로 복원되고 `clip_outliers` 로 잘린다. 그래서 정책은 데이터에 나온 속도 범위를 넘는 명령을 내지 못한다.
+- 액션 그리퍼: 연속값 그대로 학습한다. 1 에피소드 데이터에서 0.05~0.95 사이 값이 약 11% 였다. 추론 때 이진화는 하지 않는다.
+- 통계(`statistics.json`)는 학습 데이터로 계산되어 체크포인트에 저장된다. 데이터를 추가하면 다시 학습해야 범위가 반영된다.
+- 추론 로봇 환경은 `RobotEnv(action_space="cartesian_velocity", gripper_action_space="position")` 로 만들고 액션을 −1~1 로 자른다 (N1.5 추론과 같다). 수집 때 기본값은 그리퍼도 velocity 지만, 데이터의 그리퍼 액션은 위치(`action/gripper_position`)다. `gripper_action_space` 를 빼면 위치 값이 속도 명령으로 들어가 그리퍼가 다르게 움직인다.
 
 ## 원본 대비 바뀐 것
 
