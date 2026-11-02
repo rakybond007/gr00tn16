@@ -1,0 +1,21 @@
+# RoboCasa 평가 클라이언트 env (python 3.10). 결과를 낸 env 의 버전에서 클라이언트에 필요한 것만 뽑았다.
+# torch 는 필요 없다 (정책은 N1.6 서버 쪽에서 돈다).
+numpy==1.23.5
+scipy==1.11.4
+mujoco==3.2.6
+gymnasium==1.0.0
+pyzmq==27.1.0
+msgpack==1.1.2
+tqdm==4.67.1
+moviepy==1.0.3
+imageio==2.34.2
+imageio-ffmpeg==0.6.0
+opencv-python==4.8.0.74
+h5py==3.12.1
+numba==0.65.0
+lxml==6.1.0
+termcolor==3.3.0
+pillow==12.2.0
+# 아래 두 개는 README 대로 git clone 후 `pip install -e` 로 설치한다 (에셋 다운로드·macros 설정 때문에 편집 설치가 편하다).
+#   robosuite  https://github.com/ARISE-Initiative/robosuite  @ e94119512f737635111ae651768c17ad1be72859  (1.5.2)
+#   robocasa   https://github.com/robocasa/robocasa           @ 756598a5be52e052339bb2d957426e39015c2afb  (0.2.0)
